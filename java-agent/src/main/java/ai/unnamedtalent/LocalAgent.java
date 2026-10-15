@@ -30,7 +30,7 @@ import java.util.stream.Stream;
  * An AI coding agent that runs on ANY LLM you can reach over an OpenAI-compatible
  * API. The default below is a FREE local model via Ollama (no API key, nothing
  * leaves your machine). To use a cloud provider instead, change BASE_URL + API_KEY
- * + MODEL (see the table below). For Claude specifically, see ClaudeAgent.java.
+ * + MODEL (see the table below). For Claude specifically, see Agent.java.
  *
  *   Local (default):  ollama pull qwen3:8b
  *     BASE_URL = http://localhost:11434/v1   API_KEY = "ollama"   MODEL = "qwen3:8b"
@@ -86,7 +86,7 @@ public class LocalAgent {
                     Map.of("cmd", "string"), List.of("cmd"))
     );
 
-    // --- 2. EXECUTING a tool the model asked for (shared by ClaudeAgent too) ---
+    // --- 2. EXECUTING a tool the model asked for (shared by Agent too) ---
     static String runTool(String name, Map<String, Object> i) throws IOException, InterruptedException {
         switch (name) {
             case "list_files" -> {
