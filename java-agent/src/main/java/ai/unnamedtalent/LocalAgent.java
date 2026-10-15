@@ -15,7 +15,6 @@ import com.openai.models.chat.completions.ChatCompletionSystemMessageParam;
 import com.openai.models.chat.completions.ChatCompletionToolMessageParam;
 import com.openai.models.chat.completions.ChatCompletionUserMessageParam;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -87,38 +86,47 @@ public class LocalAgent {
     );
 
     // --- 2. EXECUTING a tool the model asked for (shared by Agent too) ---
-    static String runTool(String name, Map<String, Object> i) throws IOException, InterruptedException {
-        switch (name) {
-            case "list_files" -> {
-                try (Stream<Path> w = Files.walk(Path.of((String) i.get("dir")))) {
-                    return w.filter(Files::isRegularFile).map(Path::toString).collect(Collectors.joining("\n"));
+    // Any failure becomes an ERROR string the model sees as the tool result, so one
+    // bad call never crashes the agent -- it reads the error and tries again.
+    static String runTool(String name, Map<String, Object> i) {
+        try {
+            switch (name) {
+                case "list_files" -> {
+                    try (Stream<Path> w = Files.walk(Path.of((String) i.get("dir")))) {
+                        return w.filter(Files::isRegularFile).map(Path::toString).collect(Collectors.joining("\n"));
+                    }
+                }
+                case "read_file" -> {
+                    return Files.readString(Path.of((String) i.get("path")));
+                }
+                case "edit_file" -> {
+                    Path p = Path.of((String) i.get("path"));
+                    String oldS = (String) i.get("old");
+                    String newS = (String) i.get("new");
+                    if (oldS == null || newS == null) {
+                        return "ERROR: edit_file needs `old` and `new`.";
+                    }
+                    String text = Files.readString(p);
+                    int count = text.split(Pattern.quote(oldS), -1).length - 1;
+                    if (count != 1) {
+                        return "ERROR: `old` must match exactly once in " + p + " (found " + count + ").";
+                    }
+                    Files.writeString(p, text.replace(oldS, newS));
+                    return "ok: file edited";
+                }
+                case "run_bash" -> {
+                    Process pr = new ProcessBuilder("bash", "-c", (String) i.get("cmd"))
+                            .redirectErrorStream(true).start();
+                    String out = new String(pr.getInputStream().readAllBytes());
+                    pr.waitFor();
+                    return out.isBlank() ? "(no output)" : out.substring(0, Math.min(out.length(), 5000));
+                }
+                default -> {
+                    return "ERROR: unknown tool " + name;
                 }
             }
-            case "read_file" -> {
-                return Files.readString(Path.of((String) i.get("path")));
-            }
-            case "edit_file" -> {
-                Path p = Path.of((String) i.get("path"));
-                String text = Files.readString(p);
-                String oldS = (String) i.get("old");
-                String newS = (String) i.get("new");
-                int count = text.split(Pattern.quote(oldS), -1).length - 1;
-                if (count != 1) {
-                    return "ERROR: `old` must match exactly once in " + p + " (found " + count + ").";
-                }
-                Files.writeString(p, text.replace(oldS, newS));
-                return "ok: file edited";
-            }
-            case "run_bash" -> {
-                Process pr = new ProcessBuilder("bash", "-c", (String) i.get("cmd"))
-                        .redirectErrorStream(true).start();
-                String out = new String(pr.getInputStream().readAllBytes());
-                pr.waitFor();
-                return out.isBlank() ? "(no output)" : out.substring(0, Math.min(out.length(), 5000));
-            }
-            default -> {
-                return "ERROR: unknown tool " + name;
-            }
+        } catch (Exception e) {
+            return "ERROR: " + e.getMessage();
         }
     }
 
