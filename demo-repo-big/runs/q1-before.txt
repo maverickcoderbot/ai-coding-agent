@@ -1,0 +1,6 @@
+[LOST — raw final answer was NOT captured (exec reaped, 0-byte log). Do not treat the line below as the model's words.]
+Question: Where in the code do we validate that the owner telephone number is exactly 10 digits? Answer with the file and line. Do not change anything.
+
+PARAPHRASE (my description, not verbatim): the before.jar guessed PetValidator / OwnerController,
+never opened Owner.java, and concluded the 10-digit rule was "not explicitly implemented," inventing
+an OwnerValidator / @Size. To get the real raw text, re-run before.jar on this question.

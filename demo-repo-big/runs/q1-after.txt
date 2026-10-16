@@ -1,0 +1,6 @@
+[LOST — raw final answer was NOT captured (exec reaped, 0-byte log). Do not treat the line below as the model's words.]
+Question: Where in the code do we validate that the owner telephone number is exactly 10 digits? Answer with the file and line. Do not change anything.
+
+PARAPHRASE (my description, not verbatim): with search_code, the top hit returned was Owner.java:65-104
+(which does not contain the @Pattern line at 64); the model did not land on the correct line and answered
+wrong. To get the real raw text, re-run after.jar on this question.

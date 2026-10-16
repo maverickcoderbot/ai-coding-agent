@@ -1,0 +1,9 @@
+[RAW — verbatim final answer, before.jar (no search_code)]
+Question: How does the app stop you from adding two pets with the same name to one owner? Answer with the file and line. Do not change anything.
+
+The app prevents adding duplicate pet names for the same owner via a database constraint.
+
+File: src/main/resources/db/postgres/schema.sql
+Line: ALTER TABLE pets ADD CONSTRAINT uk_pets_owner_name UNIQUE (owner_id, name);
+
+This ensures the database rejects duplicates at the persistence layer.
