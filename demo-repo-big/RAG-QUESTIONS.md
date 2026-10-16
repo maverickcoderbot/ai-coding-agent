@@ -38,3 +38,27 @@ java -jar ../java-agent/target/coding-agent.jar "<question>"
      the dedup loop from the `addPet` signature across a ~40-line window, so the chunk
      that scores highest may be a nearby accessor and the real loop lands outside
      top-5. This is the "what AST chunking would fix" beat.
+
+## Actual results (qwen3:8b on an RTX 2060 6GB, 2026-10-16)
+
+Index (main source only): 66 chunks, ~4s build, 692 KB `.rag/index.json`, ~0.9s query.
+Honest, un-tuned. qwen3:8b only partly fits the 2060 (30% CPU / 70% GPU), so runs are slow.
+
+- **Q1 (telephone) — MISS, before and after.**
+  - Before (no search): reads PetValidator/OwnerController by guess, never opens Owner.java,
+    concludes "not explicitly implemented" and invents an `OwnerValidator`/`@Size`.
+  - After (search_code): retrieves `Owner.java:65-104` as the top hit — but `@Pattern(\d{10})`
+    sits on line **64**, one line above the chunk window, so the rule itself is cut off and the
+    model still answers wrong. This is the line-based-chunking weakness; AST/overlap tuning fixes it.
+- **Q2 (pet name/type required) — before MISS, after retrieves the answer but model still fumbles.**
+  - Before: reads Pet.java, hallucinates `@Column(nullable=false)`/`@NotNull` in files it never opened.
+  - After: `PetValidator.java:33-69` (the `rejectValue("name"/"type", REQUIRED)`) is in the top-5,
+    but qwen3:8b doesn't cite it and speculates about `Pet.java`. Retrieval right, small model weak.
+- **Q3 (duplicate pet name) — before MISS (hallucinated), after CORRECT.**
+  - Before: invents a non-existent `schema.sql` UNIQUE(owner_id, name) DB constraint.
+  - After: retrieves `Owner.java:97-136` and correctly answers **Owner.java, `addPet`, ~97-136**.
+
+Takeaway for the video: `search_code` reliably puts the right code in front of the model and
+kills the "guess a filename, then hallucinate" failure mode (clearest on Q3). The remaining misses
+are honest and instructive — one is retrieval (chunk boundary, Q1), one is the 8B model not using a
+good hit (Q2). Both are the "what you'd improve next" beats (AST chunking; a stronger/larger-context model).
