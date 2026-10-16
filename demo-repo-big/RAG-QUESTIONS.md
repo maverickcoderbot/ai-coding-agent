@@ -30,14 +30,24 @@ java -jar ../java-agent/target/coding-agent.jar "<question>"
      retrieval and plain guessing should both land here. Good contrast on camera.
 
 3. **"How does the app stop you adding two pets with the same name to one owner?"**  ← honest-miss candidate
-   - Answer: `src/main/java/org/springframework/samples/petclinic/owner/Owner.java`
-     — the `addPet(...)` method loops `getPets()` and rejects a duplicate name
-     (~lines 104–112).
-   - Why retrieval can miss: the logic sits inside `Owner.addPet`, a method named for
-     *adding*, not for *duplicate* or *name*. Line-based (non-AST) chunking can split
-     the dedup loop from the `addPet` signature across a ~40-line window, so the chunk
-     that scores highest may be a nearby accessor and the real loop lands outside
-     top-5. This is the "what AST chunking would fix" beat.
+   - Answer (corrected 2026-10-16): the duplicate-**name** check lives in
+     `src/main/java/org/springframework/samples/petclinic/owner/PetController.java`:
+     - `processCreationForm` (~line 111): `if (StringUtils.hasText(pet.getName()) && pet.isNew()
+       && owner.getPet(pet.getName(), true) != null) result.rejectValue("name", "duplicate", "already exists");`
+     - `processUpdateForm` (~lines 150–154): `Pet existingPet = owner.getPet(petName, false);
+       if (existingPet != null && !Objects.equals(existingPet.getId(), pet.getId()))
+       result.rejectValue("name", "duplicate", "already exists");`
+     - both use `Owner.getPet(String name, boolean ignoreNew)` (Owner.java ~147–158, `equalsIgnoreCase`).
+   - Second, valid layer: a **DB UNIQUE constraint** — `db/h2/schema.sql:55` and `db/mysql/schema.sql:47`
+     `UNIQUE (owner_id, name)`, `db/postgres/schema.sql:45` a unique index on `(owner_id, LOWER(name))`.
+     An answer that cites the DB constraint is correct (it really does prevent duplicates), just at the
+     persistence layer rather than the controller.
+   - NOTE: `Owner.addPet(...)` (Owner.java ~100–112) does **not** check names — it only skips `null`,
+     the identical object (`getPets().contains(pet)`), and a matching non-new id. The earlier version of
+     this file claimed `addPet` did the dedup; that was wrong.
+   - Why it's a good test: the filename `Owner`/`addPet` suggests the dedup lives there, but it doesn't;
+     the real check is in a controller, split across two form handlers, delegating to a method
+     (`getPet`) named for lookup, not for duplicates.
 
 ## Actual results (qwen3:8b on an RTX 2060 6GB, 2026-10-16)
 
@@ -58,11 +68,31 @@ Honest, un-tuned. qwen3:8b only partly fits the 2060 (30% CPU / 70% GPU), so run
   - Before: reads Pet.java, hallucinates `@Column(nullable=false)`/`@NotNull` in files it never opened.
   - After: `PetValidator.java:33-69` (the `rejectValue("name"/"type", REQUIRED)`) is in the top-5,
     but qwen3:8b doesn't cite it and speculates about `Pet.java`. Retrieval right, small model weak.
-- **Q3 (duplicate pet name) — before MISS (hallucinated), after CORRECT.**
-  - Before: invents a non-existent `schema.sql` UNIQUE(owner_id, name) DB constraint.
-  - After: retrieves `Owner.java:97-136` and correctly answers **Owner.java, `addPet`, ~97-136**.
+- **Q3 (duplicate pet name) — re-scored 2026-10-16. Retrieval is RIGHT; qwen3:8b picks the wrong chunk.**
+  - Before (no search): answered the **DB UNIQUE constraint** (`schema.sql`, `UNIQUE (owner_id, name)`).
+    That is a **real, valid** answer (the constraint exists in all three schema files) — NOT a hallucination.
+    It just misses the controller-level check, so call it partially correct (one of two layers).
+  - After (search_code): embed-only retrieval for the Q3 query returns a GOOD top-5 — the three
+    `PetController.java` chunks that contain the duplicate-name check rank **#1 (161-200, 0.660),
+    #2 (193-207, 0.626), #3 (129-168, 0.623)**; the `Owner.getPet(name)` chunk (`Owner.java:129-168`,
+    covers 147-158) ranks **#8**. So the right code IS in front of the model. But `Owner.addPet`'s
+    chunks (`Owner.java:97-136` #4, `65-104` #5) are also retrieved, and qwen3:8b latched onto
+    `addPet` and answered **"Owner.java, addPet, ~97-136"** — which is **WRONG** (addPet does no name
+    dedup). So this is a **model-reasoning miss, not a retrieval miss**: good retrieval, wrong chunk chosen.
+  - Honest tally change: this is NOT a clean "after = correct" win. After retrieves the right chunks
+    but the 8B model answers wrong. See the headline note below.
 
-Takeaway for the video: `search_code` reliably puts the right code in front of the model and
-kills the "guess a filename, then hallucinate" failure mode (clearest on Q3). The remaining misses
-are honest and instructive — one is retrieval ranking (Q1: the right chunk ranks #9, below top-5), one is the 8B model not using a
-good hit (Q2). Both are the "what you'd improve next" beats (Q1: a reranker or larger top-k; Q2: a stronger/larger-context model).
+Honest headline (corrected 2026-10-16): on all 3 questions, `search_code` retrieval is solid —
+it puts the right chunks in the top-5 for Q2 and Q3, and ranks the right-but-not-top chunk at #9 for Q1.
+But qwen3:8b, the 8B local model, does **not convert that into a correct final answer on any of the three**:
+- Q1: the right chunk is retrieved but at #9 (below the top-5 search_code returns) → wrong.
+- Q2: the right chunk IS in top-5, but the model doesn't cite it and speculates → wrong.
+- Q3: the right PetController chunks are #1/#2/#3, but the model picks the #4 `Owner.addPet` chunk
+  and misreads it → wrong.
+So the honest before/after is: before = 0/3 (pure guessing, though the Q3 "DB constraint" guess happened
+to be a real valid layer); after = retrieval fixes the "which file" problem on 2 of 3 and improves Q1's
+rank, but the 8B model's reasoning is the bottleneck, so the **final-answer score stays ~0/3 correct with
+this model**. The win to show on camera is RETRIEVAL quality (right code surfaced), not final accuracy —
+and the clear "what you'd improve next" is a stronger model (and for Q1, a reranker / larger top-k).
+This is the honest version; do not sell it as "1/3 → correct." If we want a correct-answer demo, we need
+a bigger model than qwen3:8b.
