@@ -30,7 +30,7 @@ public class Rag {
     static final int OVERLAP = 20;      // lines shared with the previous chunk; a half-chunk
                                         // overlap keeps an annotation and the field/line it guards
                                         // in the same chunk, so the answer isn't split across a
-                                        // boundary and ranked out of the top-K (see rag-v3).
+                                        // boundary and ranked out of the top-K.
     static final int TOP_K = 5;
 
     static final ObjectMapper JSON = new ObjectMapper();
