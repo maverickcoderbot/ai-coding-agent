@@ -52,8 +52,9 @@ public class LocalAgent {
     static final String SYSTEM = """
         You are a coding assistant working in the current project directory. \
         Use the tools to list, read, and edit files and run commands to complete \
-        the user's task. Make the smallest change that works. When the task is \
-        done and tests pass, stop and say what you did.""";
+        the user's task. When you need to find where something lives in the code, \
+        use search_code before guessing file paths. Make the smallest change that \
+        works. When the task is done and tests pass, stop and say what you did.""";
 
     // --- 1. THE TOOLS: what the model is allowed to ask us to do ---
     static ChatCompletionFunctionTool tool(String name, String desc,
@@ -82,7 +83,9 @@ public class LocalAgent {
                     Map.of("path", "string", "old", "string", "new", "string"),
                     List.of("path", "old", "new")),
             tool("run_bash", "Run a shell command (e.g. the tests) and return its output.",
-                    Map.of("cmd", "string"), List.of("cmd"))
+                    Map.of("cmd", "string"), List.of("cmd")),
+            tool("search_code", "Find the most relevant code for a question, as path:lines + text. Use this before guessing file paths.",
+                    Map.of("query", "string"), List.of("query"))
     );
 
     // --- 2. EXECUTING a tool the model asked for (shared by Agent too) ---
@@ -120,6 +123,9 @@ public class LocalAgent {
                     String out = new String(pr.getInputStream().readAllBytes());
                     pr.waitFor();
                     return out.isBlank() ? "(no output)" : out.substring(0, Math.min(out.length(), 5000));
+                }
+                case "search_code" -> {
+                    return Rag.search((String) i.get("query"));
                 }
                 default -> {
                     return "ERROR: unknown tool " + name;
