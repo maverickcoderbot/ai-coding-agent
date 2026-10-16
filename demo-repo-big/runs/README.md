@@ -22,4 +22,4 @@ Honest status of each file (NOT reconstructed from memory — only verbatim text
 | q3-after  | RAW — verbatim final answer preserved. |
 
 To recover any LOST run, re-run the jar (needs Ollama up + qwen3:8b) and overwrite the file.
-Per Nik's rule, do not hand-edit or reconstruct answers to look better.
+Do not hand-edit or reconstruct answers to look better.
