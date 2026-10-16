@@ -24,10 +24,19 @@ java -jar ../java-agent/target/coding-agent.jar "<question>"
      by filename misses it.
 
 2. **"Where is a pet's name and type checked as required?"**
-   - Answer: `src/main/java/org/springframework/samples/petclinic/owner/PetValidator.java`
-     — `errors.rejectValue("name", REQUIRED, REQUIRED)` etc.
-   - Why: the easy one. The filename DOES match the question, so it's the control —
+   - Answer (two valid layers):
+     - **Form/validator layer:** `src/main/java/org/springframework/samples/petclinic/owner/PetValidator.java`
+       — `errors.rejectValue("name", REQUIRED, REQUIRED)` (~line 44) and the type check (~lines 51–52).
+     - **Entity/bean-validation layer:** `src/main/java/org/springframework/samples/petclinic/model/NamedEntity.java:34`
+       — `@NotBlank` on the `name` field. `Pet extends NamedEntity`, so a blank name is rejected by
+       bean validation as well. An answer that cites `NamedEntity.java:34` is also correct for the "name" half.
+   - Why: the easy one. The filename `PetValidator` DOES match the question, so it's the control —
      retrieval and plain guessing should both land here. Good contrast on camera.
+   - Retrieval caveat: whether the right chunk is retrieved depends on **the query the model itself writes**,
+     not on a hand-picked probe. An earlier "Q2 retrieval looks right" note came from a full-sentence probe;
+     when a local model wrote a short query like `pet required to have a name and a type`, `PetValidator.java`
+     ranked only #11/#17 (below the top-5), so `search_code` did not surface it. The model's own query decides
+     retrieval — short/vague queries can miss even when a better-worded query would hit.
 
 3. **"How does the app stop you adding two pets with the same name to one owner?"**  ← honest-miss candidate
    - Answer (corrected 2026-10-16): the duplicate-**name** check lives in
