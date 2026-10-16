@@ -1,0 +1,9 @@
+[RAW — verbatim final answer, after.jar (with search_code)]
+Question: How does the app stop you from adding two pets with the same name to one owner? Answer with the file and line. Do not change anything.
+
+The app prevents adding two pets with the same name to one owner by checking for existing pets in the Owner class's addPet method.
+
+File: Owner.java
+Lines: 97-136
+
+The method checks if the pet already exists in the owner's list of pets using getPets().contains(pet). This relies on the Pet class's equals() method (not shown) to determine equality. If the pet is already present, it is not added again.

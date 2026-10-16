@@ -54,6 +54,32 @@ java -jar ../java-agent/target/coding-agent.jar "<question>"
 Index (main source only): 66 chunks, ~4s build, 692 KB `.rag/index.json`, ~0.9s query.
 Honest, un-tuned. qwen3:8b only partly fits the 2060 (30% CPU / 70% GPU), so runs are slow.
 
+Raw final answers are in `runs/` (one file per run). **Only `q3-before` and `q3-after` were
+durably captured verbatim; the other four raw outputs were lost** when the exec sessions were
+reaped (0-byte logs) — their `runs/` files are labelled LOST with a paraphrase, not reconstructed
+as if they were the model's words.
+
+### Per-run score vs real source (ground truth verified by reading the files)
+
+Ground truth: Q1 = `Owner.java:64` `@Pattern(regexp="\\d{10}")`. Q2 = `PetValidator.java:44` (name
+required) + `51-52` (type required). Q3 = `PetController.java` create ~111-112 / edit ~150-154 via
+`Owner.getPet(name)` (`Owner.java` ~147-158) **AND** a DB `UNIQUE(owner_id,name)` constraint
+(`db/h2/schema.sql:55`, `db/mysql/schema.sql:47`, `db/postgres/schema.sql:45` on `LOWER(name)`).
+
+| Run       | Score   | One-line reason |
+|-----------|---------|-----------------|
+| Q1 before | Wrong   | Said "not explicitly implemented," invented `OwnerValidator`/`@Size`; never found `Owner.java:64`. |
+| Q1 after  | Wrong   | Retrieval returned `Owner.java:65-104` as #1 (no line 64); right chunk `33-72` ranked #9, below top-5; answer wrong. |
+| Q2 before | Wrong   | Hallucinated `@Column(nullable=false)`/`@NotNull` in `Pet.java`; real check is `PetValidator`. |
+| Q2 after  | Wrong   | Correct `PetValidator` chunk WAS in top-5, but the model didn't cite it and speculated about `Pet.java`. |
+| Q3 before | Partial | DB `UNIQUE(owner_id,name)` is a real, valid persistence-layer answer — but misses the `PetController` app-layer check. |
+| Q3 after  | Wrong   | Answered `Owner.addPet` (97-136), which does NOT dedup names; the real check is in `PetController`. |
+
+**Tally: before 0 correct (1 partial), after 0 correct.** Retrieval improved (right file surfaced on
+Q2 and Q3, better rank on Q1), but qwen3:8b produced no correct final answer on any question.
+For Q3 specifically, **the AFTER retrieval DID surface `PetController.java` in its top-5** (chunks
+ranked #1/#2/#3) — the model just chose the #4 `Owner.addPet` chunk instead.
+
 - **Q1 (telephone) — MISS, before and after.**
   - Before (no search): reads PetValidator/OwnerController by guess, never opens Owner.java,
     concludes "not explicitly implemented" and invents an `OwnerValidator`/`@Size`.
