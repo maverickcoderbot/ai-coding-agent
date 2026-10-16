@@ -58,13 +58,11 @@ public class Rag {
         return chunks;
     }
 
-    // Only text we care about; skip build output, VCS, the index itself, binaries.
+    // Only source code; skip build output, VCS, the index itself, resources.
     static boolean isSource(Path p) {
         String s = p.toString();
-        if (s.contains("/target/") || s.contains("/.git/") || s.contains("/.rag/")
-                || s.contains("/.mvn/")) return false;
-        return s.endsWith(".java") || s.endsWith(".xml") || s.endsWith(".properties")
-                || s.endsWith(".sql") || s.endsWith(".html");
+        if (s.contains("/target/") || s.contains("/.git/") || s.contains("/.rag/")) return false;
+        return s.endsWith(".java");
     }
 
     // --- 2. EMBED: ask Ollama for a vector per input (batched in one call) ---
