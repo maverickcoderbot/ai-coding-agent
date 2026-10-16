@@ -22,10 +22,17 @@ java -jar ../java-agent/target/coding-agent.jar "<question>"
      `*Validator` class. Guessing "PetValidator / OwnerController" by filename misses it.
 
 2. **"Where is a pet's name and type checked as required?"**
-   - Answer: `src/main/java/org/springframework/samples/petclinic/owner/PetValidator.java` —
-     `errors.rejectValue("name", REQUIRED, REQUIRED)` for the name and the matching check for the type.
-   - Why: this is the control. The filename does match the question, so retrieval and plain guessing
-     should both land here.
+   - Answer (two valid layers):
+     - **Form/validator layer:** `src/main/java/org/springframework/samples/petclinic/owner/PetValidator.java`
+       — `errors.rejectValue("name", REQUIRED, REQUIRED)` for the name and the matching check for the type.
+     - **Entity/bean-validation layer:** `src/main/java/org/springframework/samples/petclinic/model/NamedEntity.java`
+       — `@NotBlank` on the `name` field. `Pet extends NamedEntity`, so a blank name is also rejected by
+       bean validation. Citing `NamedEntity` is correct for the "name" half.
+   - Why: this is the control. The filename `PetValidator` matches the question, so retrieval and plain
+     guessing should both land there.
+   - Retrieval caveat: whether the right chunk is surfaced depends on the query the model itself writes.
+     A short query like `pet required to have a name and a type` can rank `PetValidator` below the top-5,
+     while a fuller sentence retrieves it — the model's own phrasing decides what `search_code` returns.
 
 3. **"How does the app stop you adding two pets with the same name to one owner?"**
    - Answer: the duplicate-**name** check lives in
