@@ -58,10 +58,12 @@ public class Rag {
         return chunks;
     }
 
-    // Only source code; skip build output, VCS, the index itself, resources.
+    // Only main source code; skip build output, VCS, the index, and tests
+    // (test files restate the question's words and otherwise crowd out the real code).
     static boolean isSource(Path p) {
         String s = p.toString();
-        if (s.contains("/target/") || s.contains("/.git/") || s.contains("/.rag/")) return false;
+        if (s.contains("/target/") || s.contains("/.git/") || s.contains("/.rag/")
+                || s.contains("/test/")) return false;
         return s.endsWith(".java");
     }
 
