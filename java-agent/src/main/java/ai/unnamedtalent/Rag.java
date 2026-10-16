@@ -130,8 +130,20 @@ public class Rag {
         return chunks.stream()
                 .sorted((a, b) -> Double.compare(cosine(q, b.vector()), cosine(q, a.vector())))
                 .limit(TOP_K)
-                .map(c -> c.path() + ":" + c.start() + "-" + c.end() + "\n" + c.text())
+                .map(c -> c.path() + ":" + c.start() + "-" + c.end() + "\n" + numbered(c))
                 .collect(Collectors.joining("\n\n---\n\n"));
+    }
+
+    // Prefix each line with its real file line number at render time only; the
+    // embedded text and the index format are unchanged, so existing indexes stay valid.
+    static String numbered(Chunk c) {
+        String[] lines = c.text().split("\n", -1);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            if (i > 0) sb.append('\n');
+            sb.append(c.start() + i).append(": ").append(lines[i]);
+        }
+        return sb.toString();
     }
 
     static double cosine(double[] a, double[] b) {

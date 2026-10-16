@@ -53,8 +53,10 @@ public class LocalAgent {
         You are a coding assistant working in the current project directory. \
         Use the tools to list, read, and edit files and run commands to complete \
         the user's task. When you need to find where something lives in the code, \
-        use search_code before guessing file paths. Make the smallest change that \
-        works. When the task is done and tests pass, stop and say what you did.""";
+        use search_code before guessing file paths, phrasing the query as a full \
+        natural-language sentence describing the code you want, not keywords. Make \
+        the smallest change that works. When the task is done and tests pass, stop \
+        and say what you did.""";
 
     // --- 1. THE TOOLS: what the model is allowed to ask us to do ---
     static ChatCompletionFunctionTool tool(String name, String desc,
@@ -84,7 +86,7 @@ public class LocalAgent {
                     List.of("path", "old", "new")),
             tool("run_bash", "Run a shell command (e.g. the tests) and return its output.",
                     Map.of("cmd", "string"), List.of("cmd")),
-            tool("search_code", "Find the most relevant code for a question, as path:lines + text. Use this before guessing file paths.",
+            tool("search_code", "Find the most relevant code for a question, as path:lines + line-numbered text. Use this before guessing file paths. Write the query as a full natural-language sentence describing the code you want (e.g. \"where is the owner telephone number checked to be 10 digits\"), not keywords.",
                     Map.of("query", "string"), List.of("query"))
     );
 
