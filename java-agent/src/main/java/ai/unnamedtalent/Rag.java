@@ -27,7 +27,10 @@ public class Rag {
     static final String EMBED_URL = "http://localhost:11434/api/embed";
     static final String EMBED_MODEL = "nomic-embed-text";
     static final int CHUNK = 40;        // lines per chunk
-    static final int OVERLAP = 8;       // lines shared with the previous chunk
+    static final int OVERLAP = 20;      // lines shared with the previous chunk; a half-chunk
+                                        // overlap keeps an annotation and the field/line it guards
+                                        // in the same chunk, so the answer isn't split across a
+                                        // boundary and ranked out of the top-K.
     static final int TOP_K = 5;
 
     static final ObjectMapper JSON = new ObjectMapper();
@@ -130,8 +133,20 @@ public class Rag {
         return chunks.stream()
                 .sorted((a, b) -> Double.compare(cosine(q, b.vector()), cosine(q, a.vector())))
                 .limit(TOP_K)
-                .map(c -> c.path() + ":" + c.start() + "-" + c.end() + "\n" + c.text())
+                .map(c -> c.path() + ":" + c.start() + "-" + c.end() + "\n" + numbered(c))
                 .collect(Collectors.joining("\n\n---\n\n"));
+    }
+
+    // Prefix each line with its real file line number at render time only; the
+    // embedded text and the index format are unchanged, so existing indexes stay valid.
+    static String numbered(Chunk c) {
+        String[] lines = c.text().split("\n", -1);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            if (i > 0) sb.append('\n');
+            sb.append(c.start() + i).append(": ").append(lines[i]);
+        }
+        return sb.toString();
     }
 
     static double cosine(double[] a, double[] b) {
