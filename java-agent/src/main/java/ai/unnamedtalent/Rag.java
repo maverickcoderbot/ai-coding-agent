@@ -27,10 +27,9 @@ public class Rag {
     static final String EMBED_URL = "http://localhost:11434/api/embed";
     static final String EMBED_MODEL = "nomic-embed-text";
     static final int CHUNK = 40;        // lines per chunk
-    static final int OVERLAP = 20;      // lines shared with the previous chunk; a half-chunk
-                                        // overlap keeps an annotation and the field/line it guards
-                                        // in the same chunk, so the answer isn't split across a
-                                        // boundary and ranked out of the top-K.
+    static final int OVERLAP = 20;      // lines shared with the previous chunk. Tuned on the demo
+                                        // repo (8 -> 20 moved where chunks start, so the chunk with
+                                        // the answer ranked first); tune it on your own code.
     static final int TOP_K = 5;
 
     static final ObjectMapper JSON = new ObjectMapper();

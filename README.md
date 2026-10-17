@@ -118,9 +118,12 @@ handlers), so a filename guess lands on the wrong file first and `search_code` e
 - **Query wording matters.** Because ranking is pure embedding similarity, the phrasing of the
   question shifts which chunk ranks #1. A sentence that names the concept you want ("duplicate pet
   names per owner") retrieves better than a vague one.
-- **Chunk overlap is a tradeoff.** Too small an overlap can split an annotation from the field it
-  guards across a boundary so neither chunk ranks well; too large wastes index space and dilutes
-  similarity. `CHUNK = 40 / OVERLAP = 20` is a reasonable default, not a tuned optimum.
+- **Chunk size and overlap are tuning knobs, not constants.** On the demo repo, raising the overlap
+  from 8 to 20 changed where the chunks start, and the chunk holding the answer then ranked first.
+  On two other Java repos, overlap 20 helped or tied, and the best chunk size varied with file size
+  (80-line chunks were worse on small files). A larger overlap also means more chunks and more
+  duplicated text. `CHUNK = 40 / OVERLAP = 20` is a default that worked on the demo, not a tuned
+  optimum: measure it on your own code, with questions whose answers you already know.
 - Ranking is brute-force cosine over every chunk (fine for a repo this size, not for a monorepo), and
   there's no reranker — the first stage's top-K is what the model sees.
 
