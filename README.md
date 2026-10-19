@@ -141,14 +141,14 @@ score = cosine + 0.15 × (fraction of the question's words found in the chunk)
 ```
 Short words and common stop-words ("the", "is", "where", …) are ignored; the rest count as a hit if
 they appear anywhere in the chunk text. It's about 30 lines of plain Java (`keywordOverlap` in
-`Rag.java`) — **local, deterministic, no model, no API, nothing to tune.** It nudges a chunk that
+`Rag.java`) — **local, deterministic, no model, no API, and the 0.15 weight was not tuned for this test.** It nudges a chunk that
 literally contains the question's words above one that is only semantically near.
 
 **The honest limit:** it can only help when the question and the code *share words*. A question phrased
 in concepts the code never spells out ("stop two pets with the same name") gets no lift — those cases
 need a heavier reranker (a cross-encoder), which costs a model and ~1.7 s per search. On a 37-search
-test across three Java repos the keyword rerank moved top-five hits from 31 to 33 and roughly doubled
-the average rank score, with no regressions; the full numbers and method are in
+test across three Java repos the keyword rerank moved top-five hits from 31 to 33 and raised the
+average rank score from 0.61 to 0.78, and no codebase lost a top-five hit; the full numbers and method are in
 [`docs/code-search-test/`](docs/code-search-test/).
 
 ---
