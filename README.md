@@ -124,8 +124,32 @@ handlers), so a filename guess lands on the wrong file first and `search_code` e
   (80-line chunks were worse on small files). A larger overlap also means more chunks and more
   duplicated text. `CHUNK = 40 / OVERLAP = 20` is a default that worked on the demo, not a tuned
   optimum: measure it on your own code, with questions whose answers you already know.
-- Ranking is brute-force cosine over every chunk (fine for a repo this size, not for a monorepo), and
-  there's no reranker — the first stage's top-K is what the model sees.
+- Ranking is brute-force cosine over every chunk (fine for a repo this size, not for a monorepo). The
+  first stage's top 20 are reranked before the model sees the top 5 (see below).
+
+---
+
+## Reranking the top 20
+
+Pure cosine gets the answer *close* but not always first. A cheap second pass fixes some of that:
+take the top `RETRIEVE = 20` chunks by cosine, score each one again, and keep the best `TOP_K = 5`.
+The second pass only reorders those 20 — it can't add a candidate the first stage missed.
+
+The reranker is a **keyword overlap** blended into the cosine score:
+```
+score = cosine + 0.15 × (fraction of the question's words found in the chunk)
+```
+Short words and common stop-words ("the", "is", "where", …) are ignored; the rest count as a hit if
+they appear anywhere in the chunk text. It's about 30 lines of plain Java (`keywordOverlap` in
+`Rag.java`) — **local, deterministic, no model, no API, nothing to tune.** It nudges a chunk that
+literally contains the question's words above one that is only semantically near.
+
+**The honest limit:** it can only help when the question and the code *share words*. A question phrased
+in concepts the code never spells out ("stop two pets with the same name") gets no lift — those cases
+need a heavier reranker (a cross-encoder), which costs a model and ~1.7 s per search. On a 37-search
+test across three Java repos the keyword rerank moved top-five hits from 31 to 33 and roughly doubled
+the average rank score, with no regressions; the full numbers and method are in
+[`docs/code-search-test/`](docs/code-search-test/).
 
 ---
 
