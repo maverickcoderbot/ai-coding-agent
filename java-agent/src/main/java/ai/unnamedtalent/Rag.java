@@ -31,6 +31,9 @@ public class Rag {
                                         // repo (8 -> 20 moved where chunks start, so the chunk with
                                         // the answer ranked first); tune it on your own code.
     static final int TOP_K = 5;
+    static final int RETRIEVE = 20;     // first stage returns this many by cosine; the second
+                                        // pass reranks only these before we keep the top TOP_K.
+    static final double KW_WEIGHT = 0.15; // weight of the keyword-overlap score in the rerank blend
 
     static final ObjectMapper JSON = new ObjectMapper();
     static final HttpClient HTTP = HttpClient.newHttpClient();
@@ -125,15 +128,43 @@ public class Rag {
         return buildIndex(root);
     }
 
-    // --- 4. RETRIEVE: embed the query, cosine against every chunk, return top K ---
+    // --- 4. RETRIEVE: embed the query, cosine against every chunk for a first-stage top-RETRIEVE,
+    // then rerank those by cosine + KW_WEIGHT * keyword-overlap and keep the top TOP_K ---
     static String search(String query) throws Exception {
         List<Chunk> chunks = loadOrBuild(Path.of("."));
         double[] q = embed(List.of(query)).get(0);
-        return chunks.stream()
+        // first stage: cosine, keep RETRIEVE candidates
+        List<Chunk> candidates = chunks.stream()
                 .sorted((a, b) -> Double.compare(cosine(q, b.vector()), cosine(q, a.vector())))
+                .limit(RETRIEVE)
+                .collect(Collectors.toList());
+        // second stage: rerank the candidates by cosine blended with keyword overlap
+        return candidates.stream()
+                .sorted((a, b) -> Double.compare(
+                        cosine(q, b.vector()) + KW_WEIGHT * keywordOverlap(query, b.text()),
+                        cosine(q, a.vector()) + KW_WEIGHT * keywordOverlap(query, a.text())))
                 .limit(TOP_K)
                 .map(c -> c.path() + ":" + c.start() + "-" + c.end() + "\n" + numbered(c))
                 .collect(Collectors.joining("\n\n---\n\n"));
+    }
+
+    // Fraction of the query's content words that appear (as a substring) in the chunk text. Cheap,
+    // deterministic, and local: it nudges chunks that literally contain the query's words above
+    // chunks that are only semantically near. Short words and common stop-words are ignored.
+    static final java.util.Set<String> STOP = java.util.Set.of(
+            "the", "is", "a", "to", "in", "of", "where", "and", "for", "how", "do", "we",
+            "does", "you", "app", "it", "on", "that", "are", "be", "with", "an", "by");
+
+    static double keywordOverlap(String query, String text) {
+        String[] words = query.toLowerCase().replaceAll("[^a-z0-9 ]", " ").split("\\s+");
+        String body = text.toLowerCase();
+        int hit = 0, total = 0;
+        for (String w : words) {
+            if (w.length() < 3 || STOP.contains(w)) continue;
+            total++;
+            if (body.contains(w)) hit++;
+        }
+        return total == 0 ? 0 : (double) hit / total;
     }
 
     // Prefix each line with its real file line number at render time only; the
